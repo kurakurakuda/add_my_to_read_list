@@ -1,0 +1,22 @@
+{
+  "name": "add-my-to-read-list",
+  "version": "1.0.0",
+  "description": "A Chrome extension to save web page titles and links to a specified Google Spreadsheet, with optional categorization.",
+  "main": "index.js",
+  "scripts": {
+    "build:dev": "webpack --mode=development",
+    "build:prod": "webpack --mode=production",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "chrome-types": "^0.1.327",
+    "copy-webpack-plugin": "^12.0.2",
+    "ts-loader": "^9.5.1",
+    "typescript": "^5.7.2",
+    "webpack": "^5.97.1",
+    "webpack-cli": "^6.0.1"
+  }
+}

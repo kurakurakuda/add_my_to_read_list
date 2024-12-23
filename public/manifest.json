@@ -1,0 +1,10 @@
+{
+    "manifest_version": 3,
+    "name": "Add My To Read List",
+    "version": "1.0",
+    "description": "A Chrome extension to save web page titles and links to a specified Google Spreadsheet, with optional categorization.",
+    "action": {
+      "default_popup": "popup/popup.html"
+    }
+  }
+  
