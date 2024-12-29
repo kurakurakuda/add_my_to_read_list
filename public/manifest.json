@@ -4,7 +4,11 @@
     "version": "1.0",
     "description": "A Chrome extension to save web page titles and links to a specified Google Spreadsheet, with optional categorization.",
     "action": {
-      "default_popup": "popup/popup.html"
-    }
+      "default_popup": "popup.html"
+    },
+    "permissions": [
+      "activeTab",
+      "tabs"
+    ]
   }
   
