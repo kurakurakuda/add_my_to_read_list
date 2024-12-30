@@ -30,7 +30,10 @@ module.exports = {
         { 
             from: ".", 
             to: ".",
-            context: "./public"
+            context: "./public",
+            globOptions: {
+              ignore: ["**/manifest.sample.json"], // 除外したいファイルを指定
+            }
           }
       ],
     }),

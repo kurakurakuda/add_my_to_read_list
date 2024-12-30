@@ -28,13 +28,17 @@ document.addEventListener('DOMContentLoaded', async () => {
       const today = new Date();
       const formattedToday = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()}`;
 
-      
-      console.log(gssUrl);
-      console.log(title);
-      console.log(link);
-      console.log(category);
-      console.log(today, formattedToday);
+      const data = [title, link, category, formattedToday];
+      console.log(data);
 
+      try {
+        const token = await getAccessToken();
+        console.log(token);
+      } catch (error) {
+        console.error(error);
+        alert('処理に失敗しました。設定が正しいか、確認してください。');
+        return;
+      }
       // window.close();
     });
 
@@ -43,4 +47,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       window.close();
   });
 });
-  
+
+async function getAccessToken() {
+  return new Promise((resolve, reject) => {
+    chrome.identity.getAuthToken({ interactive: true }, (token) => {
+      chrome.runtime.lastError || !token ? reject(chrome.runtime.lastError) : resolve(token);
+    });
+  });
+}
