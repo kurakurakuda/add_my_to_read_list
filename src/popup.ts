@@ -21,6 +21,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
+      const gssId = getGssId(gssUrl);
+      if (!gssId) {
+        alert('Google Spreadsheet URLが正しくありません');
+        return;
+      }
+
       const title = titleInput?.value;
       const link = currentTab.url;
       const category = categoryInput?.value;
@@ -29,11 +35,32 @@ document.addEventListener('DOMContentLoaded', async () => {
       const formattedToday = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()}`;
 
       const data = [title, link, category, formattedToday];
-      console.log(data);
+
+      console.log(gssId, data);
 
       try {
         const token = await getAccessToken();
         console.log(token);
+
+        const response = await fetch(
+          `https://sheets.googleapis.com/v4/spreadsheets/${gssId}/values/A:D:append?valueInputOption=RAW`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              values: [data]
+            })
+          }
+        );
+
+        if (!response.ok)  {
+          console.error(await response.json());
+          throw new Error('Google Spread Sheetへの書き込みに失敗しました');
+        }
+        
       } catch (error) {
         console.error(error);
         alert('処理に失敗しました。設定が正しいか、確認してください。');
@@ -54,4 +81,40 @@ async function getAccessToken() {
       chrome.runtime.lastError || !token ? reject(chrome.runtime.lastError) : resolve(token);
     });
   });
+}
+
+function getGssId(url: string): string | undefined {
+  if (!url) {
+    return undefined;
+  }
+
+  try {
+    // URLオブジェクトを作成して正しいURLかを検証
+    const urlObj = new URL(url);
+    
+    // Google Spreadsheetのドメインかチェック
+    if (!urlObj.hostname.includes('docs.google.com') || !urlObj.pathname.includes('/spreadsheets/d/')) {
+      return undefined;
+    }
+
+    // パスからIDを直接抽出
+    const parts = urlObj.pathname.split('/');
+    const spreadsheetIdIndex = parts.indexOf('d') + 1;
+    
+    if (spreadsheetIdIndex >= parts.length) {
+      return undefined;
+    }
+
+    const spreadsheetId = parts[spreadsheetIdIndex];
+    
+    // IDの形式を検証（英数字、ハイフン、アンダースコアのみ許可）
+    if (!spreadsheetId.match(/^[a-zA-Z0-9-_]+$/)) {
+      return undefined;
+    }
+
+    return spreadsheetId;
+
+  } catch (error) {
+    return undefined;
+  }
 }

@@ -24,7 +24,14 @@ This Chrome extension allows you to easily save the information about the web pa
     ** You can get アイテムID from `chrome://extensions/` with developer mode.  
     ![画像](./doc/pic/アイテムID.png) 
 4. Get Chrome App Application ID  
-    ![画像](./doc/pic/GCP_AppID.png) 
+    ![画像](./doc/pic/GCP_AppID.png)   
+    ** You can make use of this [link](https://developer.chrome.com/docs/extensions/how-to/integrate/oauth?hl=ja#upload_to_dashboard) accordingly.  
+5. Enable Google Sheets API  
+    1. Open 「APIとサービス」＞「有効なAPIとサービス」  
+        ![画像](./doc/pic/GCP_GoogleAPI有効化.png)  
+    2. Select 「+ APIとサービスの有効化」  
+        ![画像](./doc/pic/GCP_GoogleAPI有効化選択.png)  
+    3. Select Google Sheets API  
 
 ### Steps
 1. Copy `manifest.sample.json` to `manifest.json` and replace `oauth2.client_id` with your Chrome App Application ID.  
