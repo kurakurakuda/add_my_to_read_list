@@ -66,7 +66,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         alert('処理に失敗しました。設定が正しいか、確認してください。');
         return;
       }
-      // window.close();
+      window.close();
     });
 
   // キャンセルボタンのクリックイベント
