@@ -6,26 +6,44 @@
         <script src="popup.js"></script>
         <link rel="stylesheet" href="./popup.css" />
     </head>
-    <body class="popup-body">
-        <h3 class="popup-title">Add My To Read List</h3>
-        <div id="gss-url" class="popup-field">
+    <body>
+        <h2>Add My To Read List</h2>
+        <div id="gss-url" class="field">
             <label>Google Spreadsheet URL:
-                <input type="url" class="popup-input">
+                <div class="input-block">
+                    <input type="url" class="input">
+                    <button>▼</button>
+                </div>
+                <select size="2">
+                    <option>A</option>
+                    <option>B</option>
+                    <option>C</option>
+                </select>
             </label>
         </div>
-        <div id="title" class="popup-field">
+        <div id="title" class="field">
             <label>Title:
-                <input type="text" class="popup-input" readonly>
+                <div class="input-block">
+                    <input type="text" class="input" readonly>
+                </div>
             </label>
         </div>
-        <div id="category" class="popup-field">
+        <div id="category" class="field">
             <label>種別:
-                <input type="text" class="popup-input">
+                <div class="input-block">
+                    <input type="text" class="input">
+                        <button>▼</button>
+                </div>
+                <select size="2">
+                    <option>X</option>
+                    <option>Y</option>
+                    <option>Z</option>
+                </select>
             </label>
         </div>        
-        <div class="popup-buttons">
-            <button id="cancel" class="btn btn-cancel">キャンセル</button>
-            <button id="save" class="btn btn-save">保存</button>
+        <div class="btn-area">
+            <button id="cancel" class="btn cancel">キャンセル</button>
+            <button id="save" class="btn save">保存</button>
         </div>
     </body>
 </html>
