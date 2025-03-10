@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const gssUrlInput = document.querySelector<HTMLInputElement>('#gss-url input');
     const gssUrlSelectBtn = document.querySelector<HTMLButtonElement>('#gss-url button');
     const gssUrlDropdown = document.querySelector<HTMLSelectElement>('#gss-url select');
+    const gssTitleArea = document.querySelector<HTMLElement>('#gss-title');
 
     const titleInput = document.querySelector<HTMLInputElement>('#title input');
 
@@ -21,46 +22,158 @@ document.addEventListener('DOMContentLoaded', async () => {
       titleInput.value = title;
     }
 
-    gssUrlSelectBtn?.addEventListener('click', function() {
-      // TODO リファクタ候補
-      if (gssUrlDropdown) {
-        gssUrlDropdown.style.display = (gssUrlDropdown.style.display === 'block') ? 'none' : 'block';
-        gssUrlDropdown.selectedIndex = -1;
-      }
-    })
+    const getAccessToken = async (): Promise<any>  =>  {
+      return new Promise((resolve, reject) => {
+        chrome.identity.getAuthToken({ interactive: true }, (token) => {
+          chrome.runtime.lastError || !token ? reject(chrome.runtime.lastError) : resolve(token);
+        });
+      });
+    }
 
-    gssUrlDropdown?.addEventListener('change', function() {
-      // TODO リファクタ候補
-      if (gssUrlInput) {
-        gssUrlInput.value = gssUrlDropdown.value;
-        gssUrlDropdown.style.display ='none';
-      }
-    })
+    const invokeGssApi = async (url: string, method: string, data?: object): Promise<any | null> => {
+      try {
+        const req = {
+          method: method,
+          headers: {
+            Authorization: `Bearer ${await getAccessToken()}`,
+            "Content-Type": "application/json"
+          }
+        } as RequestInit;
 
-    categorySelectBtn?.addEventListener('click', function() {
-      // TODO リファクタ候補
-      if (categoryDropdown) {
-        categoryDropdown.style.display = (categoryDropdown.style.display === 'block') ? 'none' : 'block';
-        categoryDropdown.selectedIndex = -1;
-      }
-    })
+        if (method !== "GET" && data) {
+          req.body = JSON.stringify({
+            values: [data]
+          });
+        }
 
-    categoryDropdown?.addEventListener('change', function() {
-      // TODO リファクタ候補
-      if (categoryInput) {
-        categoryInput.value = categoryDropdown.value;
-        categoryDropdown.style.display ='none';
-      }
-    })
+        const response = await fetch(url, req);
 
-    saveBtn?.addEventListener('click', async function() {
-      const gssUrl = gssUrlInput?.value;
-      if (!gssUrl) {
-        alert('Google Spreadsheet URLを入力してください');
+        if (!response.ok)  {
+          console.error(await response.json());
+          throw new Error('Google Spread Sheet APIの呼び出しに失敗しました');
+        }
+
+        return await response.json()
+        
+      } catch (error) {
+        console.error(error);
+        return null;
+      }
+    }
+
+    const getGssId = (url?: string): string | null => {
+      if (!url) {
+        return null;
+      }
+
+      try {
+        // URLオブジェクトを作成して正しいURLかを検証
+        const urlObj = new URL(url);
+        
+        // Google Spreadsheetのドメインかチェック
+        if (!urlObj.hostname.includes('docs.google.com') || !urlObj.pathname.includes('/spreadsheets/d/')) {
+          return null;
+        }
+
+        // パスからIDを直接抽出
+        const parts = urlObj.pathname.split('/');
+        const spreadsheetIdIndex = parts.indexOf('d') + 1;
+        if (spreadsheetIdIndex >= parts.length) {
+          return null;
+        }
+
+        const spreadsheetId = parts[spreadsheetIdIndex];
+        
+        // IDの形式を検証（英数字、ハイフン、アンダースコアのみ許可）
+        if (!spreadsheetId.match(/^[a-zA-Z0-9-_]+$/)) {
+          return null;
+        }
+
+        return spreadsheetId;
+
+      } catch (error) {
+        return null;
+      }
+    }
+
+    const toggleDropdown = (dropdown: HTMLSelectElement | null): void => {
+      if (dropdown) {
+        dropdown.style.display = (dropdown.style.display === 'block') ? 'none' : 'block';
+        dropdown.selectedIndex = -1;
+      }
+    }
+
+    const changeFieldValue = (input: HTMLInputElement | null, dropdown: HTMLSelectElement | null): void => {
+      if (input && dropdown) {
+        input.value = dropdown.value;
+        dropdown.style.display ='none';
+      }
+    }
+
+    gssUrlInput?.addEventListener('change', async () => {
+      const setGssTitle = (title: string | null): void => {
+        if (gssTitleArea) {
+          gssTitleArea.textContent = title
+        }
+      }
+
+      const clearCategoryOptions = (): void => {
+        while (categoryDropdown?.firstChild) {
+          categoryDropdown.removeChild(categoryDropdown.firstChild);
+        }
+      }
+
+      const gssId = getGssId(gssUrlInput?.value);
+      if (!gssId) {
+        setGssTitle(null);
+        clearCategoryOptions();
         return;
       }
 
-      const gssId = getGssId(gssUrl);
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}?includeGridData=true&ranges=C:C`;
+      const spreadsheet = await invokeGssApi(url, "GET");
+      if (!spreadsheet) {
+        setGssTitle(null);
+        clearCategoryOptions();
+        return;
+      }
+
+      const gssTitle = spreadsheet.properties.title;
+      const categories = Array.from(
+        new Set(spreadsheet.sheets[0].data[0].rowData
+          .slice(1)
+          .map((data : any) => data?.values?.[0]?.formattedValue)
+          .filter((data: any) => data)
+        ));
+      
+      clearCategoryOptions();
+
+      categoryDropdown!.size = Math.min(categories.length, 4);
+      // 種別に更新ボタンを用意するか？ -> 管理画面の実装時に合わせて考える
+      categories.forEach((c: any) => {
+        categoryDropdown!.appendChild(new Option(c));
+      });
+
+      setGssTitle(gssTitle);
+
+    })
+
+    gssUrlSelectBtn?.addEventListener('click', () => toggleDropdown(gssUrlDropdown));
+
+    // 入力欄は、今のところ、初期値は未入力とする
+    // 矢印クリック時に、選択肢一覧が最大5個表示されるべき
+    // ５個以上の場合は、スクロールバーが表示されるべき
+    gssUrlDropdown?.addEventListener('change', () => changeFieldValue(gssUrlInput, gssUrlDropdown));
+
+    categorySelectBtn?.addEventListener('click', () => toggleDropdown(categoryDropdown));
+
+    // 入力欄は、今のところ、初期値は未入力とする
+    // 矢印クリック時に、選択肢一覧が最大5個表示されるべき
+    // ５個以上の場合は、スクロールバーが表示されるべき
+    categoryDropdown?.addEventListener('change', () => changeFieldValue(categoryInput, categoryDropdown));
+
+    saveBtn?.addEventListener('click', async () => {
+      const gssId = getGssId(gssUrlInput?.value);
       if (!gssId) {
         alert('Google Spreadsheet URLが正しくありません');
         return;
@@ -73,31 +186,11 @@ document.addEventListener('DOMContentLoaded', async () => {
       const today = new Date();
       const formattedToday = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()}`;
 
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}/values/A:D:append?valueInputOption=RAW`;
       const data = [title, link, category, formattedToday];
 
-      try {
-        const token = await getAccessToken();
-        const response = await fetch(
-          `https://sheets.googleapis.com/v4/spreadsheets/${gssId}/values/A:D:append?valueInputOption=RAW`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-              values: [data]
-            })
-          }
-        );
-
-        if (!response.ok)  {
-          console.error(await response.json());
-          throw new Error('Google Spread Sheetへの書き込みに失敗しました');
-        }
-        
-      } catch (error) {
-        console.error(error);
+      const res = await invokeGssApi(url, "POST", data);
+      if (!res) {
         alert('処理に失敗しました。設定が正しいか、確認してください。');
         return;
       }
@@ -105,12 +198,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // キャンセルボタンのクリックイベント
-    cancelBtn?.addEventListener('click', function() {
-        window.close();
-    });
+    cancelBtn?.addEventListener('click', () => window.close());
 });
 
-document.addEventListener('click', function(event) {
+document.addEventListener('click', (event) => {
   const gssUrlArea = document.querySelector<HTMLElement>('#gss-url');
   const gssUrlDropdown = document.querySelector<HTMLSelectElement>('#gss-url select');
   const categoryArea = document.querySelector<HTMLElement>('#category');
@@ -120,49 +211,5 @@ document.addEventListener('click', function(event) {
   }
   if (!categoryArea?.contains(event.target as Node) && categoryDropdown) {
     categoryDropdown.style.display = 'none';
-  } 
+  }  
 })
-
-async function getAccessToken() {
-  return new Promise((resolve, reject) => {
-    chrome.identity.getAuthToken({ interactive: true }, (token) => {
-      chrome.runtime.lastError || !token ? reject(chrome.runtime.lastError) : resolve(token);
-    });
-  });
-}
-
-function getGssId(url: string): string | undefined {
-  if (!url) {
-    return undefined;
-  }
-
-  try {
-    // URLオブジェクトを作成して正しいURLかを検証
-    const urlObj = new URL(url);
-    
-    // Google Spreadsheetのドメインかチェック
-    if (!urlObj.hostname.includes('docs.google.com') || !urlObj.pathname.includes('/spreadsheets/d/')) {
-      return undefined;
-    }
-
-    // パスからIDを直接抽出
-    const parts = urlObj.pathname.split('/');
-    const spreadsheetIdIndex = parts.indexOf('d') + 1;
-    
-    if (spreadsheetIdIndex >= parts.length) {
-      return undefined;
-    }
-
-    const spreadsheetId = parts[spreadsheetIdIndex];
-    
-    // IDの形式を検証（英数字、ハイフン、アンダースコアのみ許可）
-    if (!spreadsheetId.match(/^[a-zA-Z0-9-_]+$/)) {
-      return undefined;
-    }
-
-    return spreadsheetId;
-
-  } catch (error) {
-    return undefined;
-  }
-}

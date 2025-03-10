@@ -101,3 +101,7 @@ body {
 .btn.save:hover {
     background-color: #0056b3;
 }
+
+#gss-title {
+    margin: 6px 0;
+}
