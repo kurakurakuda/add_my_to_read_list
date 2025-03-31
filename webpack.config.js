@@ -4,9 +4,9 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 module.exports = {
   mode: process.env.NODE_ENV || "development",
   entry: {
-    // background: './src/background.ts',
-    // content: './src/content.ts',
     popup: './src/popup.ts',
+    admin: './src/admin.ts',
+    utils: './src/utils.ts'
   },
   output: {
     path: path.resolve(__dirname, 'dist'),

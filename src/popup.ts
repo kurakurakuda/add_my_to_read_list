@@ -1,3 +1,5 @@
+import { getGssId, invokeGssApi } from './utils';
+
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Popup loaded.');
 
@@ -15,85 +17,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     const saveBtn = document.querySelector('#save');
     const cancelBtn = document.querySelector('#cancel');
 
+    const adminLink = document.querySelector<HTMLElement>("#admin-link")
+
     const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
     const currentTab = tabs[0];
     const title = currentTab.title;
     if (titleInput && title) {
       titleInput.value = title;
-    }
-
-    const getAccessToken = async (): Promise<any>  =>  {
-      return new Promise((resolve, reject) => {
-        chrome.identity.getAuthToken({ interactive: true }, (token) => {
-          chrome.runtime.lastError || !token ? reject(chrome.runtime.lastError) : resolve(token);
-        });
-      });
-    }
-
-    const invokeGssApi = async (url: string, method: string, data?: object): Promise<any | null> => {
-      try {
-        const req = {
-          method: method,
-          headers: {
-            Authorization: `Bearer ${await getAccessToken()}`,
-            "Content-Type": "application/json"
-          }
-        } as RequestInit;
-
-        if (method !== "GET" && data) {
-          req.body = JSON.stringify({
-            values: [data]
-          });
-        }
-
-        const response = await fetch(url, req);
-
-        if (!response.ok)  {
-          console.error(await response.json());
-          throw new Error('Google Spread Sheet APIの呼び出しに失敗しました');
-        }
-
-        return await response.json()
-        
-      } catch (error) {
-        console.error(error);
-        return null;
-      }
-    }
-
-    const getGssId = (url?: string): string | null => {
-      if (!url) {
-        return null;
-      }
-
-      try {
-        // URLオブジェクトを作成して正しいURLかを検証
-        const urlObj = new URL(url);
-        
-        // Google Spreadsheetのドメインかチェック
-        if (!urlObj.hostname.includes('docs.google.com') || !urlObj.pathname.includes('/spreadsheets/d/')) {
-          return null;
-        }
-
-        // パスからIDを直接抽出
-        const parts = urlObj.pathname.split('/');
-        const spreadsheetIdIndex = parts.indexOf('d') + 1;
-        if (spreadsheetIdIndex >= parts.length) {
-          return null;
-        }
-
-        const spreadsheetId = parts[spreadsheetIdIndex];
-        
-        // IDの形式を検証（英数字、ハイフン、アンダースコアのみ許可）
-        if (!spreadsheetId.match(/^[a-zA-Z0-9-_]+$/)) {
-          return null;
-        }
-
-        return spreadsheetId;
-
-      } catch (error) {
-        return null;
-      }
     }
 
     const toggleDropdown = (dropdown: HTMLSelectElement | null): void => {
@@ -199,6 +129,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // キャンセルボタンのクリックイベント
     cancelBtn?.addEventListener('click', () => window.close());
+
+    adminLink?.addEventListener('click', () => {
+      chrome.tabs.create({url: "admin.html"});
+    });
 });
 
 document.addEventListener('click', (event) => {
@@ -213,3 +147,39 @@ document.addEventListener('click', (event) => {
     categoryDropdown.style.display = 'none';
   }  
 })
+
+// popup.js での表示処理
+// document.addEventListener('DOMContentLoaded', function() {
+//   // 管理画面を開くリンク
+//   document.getElementById('openDetailLink').addEventListener('click', function() {
+//     chrome.tabs.create({url: 'detail.html'});
+//   });
+  
+//   // 保存された項目を表示
+//   const itemsContainer = document.getElementById('itemsContainer');
+  
+//   // 保存されている項目を読み込む
+//   chrome.storage.sync.get(['popupItems'], function(result) {
+//     const items = result.popupItems || [];
+    
+//     // 項目を表示
+//     if (items.length === 0) {
+//       itemsContainer.innerHTML = '<p>表示項目はまだありません</p>';
+//     } else {
+//       const ul = document.createElement('ul');
+      
+//       items.forEach(item => {
+//         const li = document.createElement('li');
+//         li.textContent = item;
+//         ul.appendChild(li);
+//       });
+      
+//       itemsContainer.appendChild(ul);
+//     }
+//   });
+// });
+// onChangedイベントリスナーを追加して、ストレージの変更を監視する
+// chrome.storage.onChanged.addListener(function(changes, namespace) {    
+//   if (namespace === 'sync') {
+//     // 変更された項目を取
+//     for (let key in changes) {

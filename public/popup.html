@@ -4,6 +4,7 @@
         <title>Add My To Read List</title>
         <meta charset="utf-8">
         <script src="popup.js"></script>
+        <link rel="stylesheet" href="./common.css" />
         <link rel="stylesheet" href="./popup.css" />
     </head>
     <body>
@@ -11,7 +12,7 @@
         <div id="gss-url" class="field">
             <label>Google Spreadsheet URL:
                 <div class="input-block">
-                    <input type="url" class="input">
+                    <input type="url">
                     <button>▼</button>
                 </div>
                 <select size="2">
@@ -25,14 +26,14 @@
         <div id="title" class="field">
             <label>Title:
                 <div class="input-block">
-                    <input type="text" class="input" readonly>
+                    <input type="text" readonly>
                 </div>
             </label>
         </div>
         <div id="category" class="field">
             <label>種別:
                 <div class="input-block">
-                    <input type="text" class="input">
+                    <input type="text">
                         <button>▼</button>
                 </div>
                 <select size="2">
@@ -43,8 +44,13 @@
             </label>
         </div>        
         <div class="btn-area">
-            <button id="cancel" class="btn cancel">キャンセル</button>
-            <button id="save" class="btn save">保存</button>
+            <div>
+                <span class="link" id="admin-link">管理</span>
+            </div>
+            <div class="btn-action-area">
+                <button id="cancel" class="secondary">キャンセル</button>
+                <button id="save" class="primary">保存</button>
+            </div>
         </div>
     </body>
 </html>
