@@ -1,7 +1,16 @@
-import { getGssId, invokeGssApi } from './utils';
+import { GssInfo, 
+  getGssId, invokeGssApi, 
+  getStorageData, setStorageData } from './utils';
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Popup loaded.');
+
+    interface GssDto {
+      title: string;
+      url: string;
+      categories: string[]
+      info?: GssInfo;
+    }
 
     const gssUrlInput = document.querySelector<HTMLInputElement>('#gss-url input');
     const gssUrlSelectBtn = document.querySelector<HTMLButtonElement>('#gss-url button');
@@ -40,72 +49,153 @@ document.addEventListener('DOMContentLoaded', async () => {
       }
     }
 
+    const changeGssOption = (title: string | null, url?: string, categories?: string[] | null): void => {
+      while (gssTitleArea?.firstChild) {
+        gssTitleArea.removeChild(gssTitleArea.firstChild);
+      }
+
+      if (categoryInput) {
+        categoryInput.value = '';
+      }
+      
+      while (categoryDropdown?.firstChild) {
+        categoryDropdown.removeChild(categoryDropdown.firstChild);
+      }
+
+      if (title && url) {
+        const titleLink = document.createElement('a') as HTMLAnchorElement;
+        titleLink.href = url;
+        titleLink.target = "_blank";
+        const titleSpan = document.createElement('span') as HTMLSpanElement;
+        titleSpan.className = "link";
+        titleSpan.textContent = title;
+        titleLink.appendChild(titleSpan)
+        gssTitleArea!.appendChild(titleLink)
+      }
+      
+      if (categories && categories.length > 0) {
+        categoryDropdown!.size = Math.min(Math.max(categories.length, 2), 4);
+        categories.forEach((c: any) => categoryDropdown!.appendChild(new Option(c)));
+      } else {
+        categoryDropdown!.size = 2;
+      }
+    }
+
+    const gsses = await getStorageData().then( async (info: GssInfo[]) => {
+          const fetchCategories = async (baseUrl: string, column: string, sheet?: string, isRequireHeader?: boolean): Promise<string[]> => {
+            const urlWithRange = `${baseUrl}?includeGridData=true&ranges=${sheet ? sheet + "!" : ""}${column + ":" + column}`;
+            console.log(`started. timestamp: ${new Date().toISOString()} : url: ${urlWithRange}`);
+            const res = await invokeGssApi(urlWithRange, "GET");
+            console.log(`completed. timestamp: ${new Date().toISOString()} : url: ${urlWithRange}`);
+            const rowData = res?.sheets[0]?.data?.[0]?.rowData;
+            return rowData ? Array.from(
+              new Set(rowData.slice(isRequireHeader ? 1 : 0).map((data: any) => data?.values?.[0]?.formattedValue).filter((data: any) => data))
+            ) as string[]
+            : [] as string[];
+          }
+
+          if (info.length === 0) { throw Error(`The data from storage is empty`) }
+          return await Promise.all(
+            info.map(async (i): Promise<GssDto> => {
+              try {
+                const gssUrlId = getGssId(i.gssUrl);
+                if (!gssUrlId) { throw Error(`The invalid gss id`) }
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssUrlId}`;
+                console.log(`started. timestamp: ${new Date().toISOString()} : url: ${url}`);
+                const spreadsheet = await invokeGssApi(url, "GET");
+                console.log(`completed. timestamp: ${new Date().toISOString()} : url: ${url}`);
+                if (!spreadsheet) { throw Error("Invalid Gss API Res"); }
+                const title = spreadsheet.properties.title;
+                const matched = i.sheetName ? spreadsheet.sheets.filter((s: any) => s.properties.title === i.sheetName).length > 0 : true;
+                const categories = matched ? await fetchCategories(url, i.category, i.sheetName, i.isRequireHeader) : [] as string[];
+                return { title: title, url: i.gssUrl, categories: categories, info: i } as GssDto;
+              } catch (error) {
+                console.error(`error: ${error}`);
+                return { title: i.gssUrl, url: i.gssUrl, categories: [], info: i } as GssDto;
+              }
+            })
+          );
+        })
+      .catch((error) => {
+        console.error(`Failed while calling storage api. error: ${error}`);
+        return [] as GssDto[];
+      })
+
     gssUrlInput?.addEventListener('change', async () => {
-      const setGssTitle = (title: string | null): void => {
-        if (gssTitleArea) {
-          gssTitleArea.textContent = title
-        }
-      }
-
-      const clearCategoryOptions = (): void => {
-        while (categoryDropdown?.firstChild) {
-          categoryDropdown.removeChild(categoryDropdown.firstChild);
-        }
-      }
-
-      const gssId = getGssId(gssUrlInput?.value);
+      const gssUrl = gssUrlInput?.value;
+      const gssId = getGssId(gssUrl);
       if (!gssId) {
-        setGssTitle(null);
-        clearCategoryOptions();
+        changeGssOption(null);
         return;
       }
 
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}?includeGridData=true&ranges=C:C`;
+      const existingGss = gsses.find(g => getGssId(g.url) === gssId) || null;
+      if (existingGss) {
+        changeGssOption(existingGss.title, existingGss.url, existingGss.categories);
+        return;
+      }
+
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}`;
       const spreadsheet = await invokeGssApi(url, "GET");
       if (!spreadsheet) {
-        setGssTitle(null);
-        clearCategoryOptions();
+        changeGssOption(null);
         return;
       }
 
-      const gssTitle = spreadsheet.properties.title;
-      const categories = Array.from(
-        new Set(spreadsheet.sheets[0].data[0].rowData
-          .slice(1)
-          .map((data : any) => data?.values?.[0]?.formattedValue)
-          .filter((data: any) => data)
-        ));
-      
-      clearCategoryOptions();
-
-      categoryDropdown!.size = Math.min(categories.length, 4);
-      // 種別に更新ボタンを用意するか？ -> 管理画面の実装時に合わせて考える
-      categories.forEach((c: any) => {
-        categoryDropdown!.appendChild(new Option(c));
-      });
-
-      setGssTitle(gssTitle);
-
+      changeGssOption(spreadsheet.properties.title, gssUrl, null);
     })
 
     gssUrlSelectBtn?.addEventListener('click', () => toggleDropdown(gssUrlDropdown));
 
-    // 入力欄は、今のところ、初期値は未入力とする
-    // 矢印クリック時に、選択肢一覧が最大5個表示されるべき
-    // ５個以上の場合は、スクロールバーが表示されるべき
-    gssUrlDropdown?.addEventListener('change', () => changeFieldValue(gssUrlInput, gssUrlDropdown));
+    gssUrlDropdown?.addEventListener('change', () => {
+      const selectedGss = gsses.find(g => getGssId(g.url) === getGssId(gssUrlDropdown.value)) || null;
+      if (!selectedGss) {
+        alert('予期せぬエラーが発生しました。設定が正しいか、確認してください。');
+        return;
+      }
+      changeGssOption(selectedGss.title, selectedGss.url, selectedGss.categories);
+      changeFieldValue(gssUrlInput, gssUrlDropdown);
+    });
 
     categorySelectBtn?.addEventListener('click', () => toggleDropdown(categoryDropdown));
 
-    // 入力欄は、今のところ、初期値は未入力とする
-    // 矢印クリック時に、選択肢一覧が最大5個表示されるべき
-    // ５個以上の場合は、スクロールバーが表示されるべき
     categoryDropdown?.addEventListener('change', () => changeFieldValue(categoryInput, categoryDropdown));
 
     saveBtn?.addEventListener('click', async () => {
-      const gssId = getGssId(gssUrlInput?.value);
+      const defineRange = (info?: GssInfo): string => info?.sheetName! ? `${info.sheetName}!A:F` : "A:F";
+      const generatePostValue = (formattedToday: string, title?: string, link?: string, category?: string, info?: GssInfo): (string | null)[] => {
+        const mapValuePerColumn = (column: string, info: GssInfo): (string | null) => {
+          if (info.title === column) { return title?? null; } 
+          else if (info.link === column) { return link?? null; } 
+          else if (info.category === column) { return category?? null; } 
+          else if (info.createdAt === column) { return formattedToday; } 
+          else { return null; }
+        }
+
+        if (!info) {
+          return [title?? null, link?? null, category?? null, formattedToday, null, null]
+        }
+
+        return [
+          mapValuePerColumn("A", info),
+          mapValuePerColumn("B", info),
+          mapValuePerColumn("C", info),
+          mapValuePerColumn("D", info),
+          mapValuePerColumn("E", info),
+          mapValuePerColumn("F", info)
+        ]
+      }
+      
+      const gssUrl = gssUrlInput?.value
+      const gssId = getGssId(gssUrl);
+      const existed = gsses.find((g: GssDto) => gssId === getGssId(g.url));
       if (!gssId) {
         alert('Google Spreadsheet URLが正しくありません');
+        return;
+      }
+
+      if (!existed && gsses.length >= 10) {
+        alert('最大10件までしか登録できません。');
         return;
       }
 
@@ -116,13 +206,42 @@ document.addEventListener('DOMContentLoaded', async () => {
       const today = new Date();
       const formattedToday = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()}`;
 
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}/values/A:D:append?valueInputOption=RAW`;
-      const data = [title, link, category, formattedToday];
+      const range = defineRange(existed?.info);
+
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}/values/${range}:append?valueInputOption=RAW`;
+      const data = generatePostValue(formattedToday,title, link, category, existed?.info);
 
       const res = await invokeGssApi(url, "POST", data);
       if (!res) {
-        alert('処理に失敗しました。設定が正しいか、確認してください。');
+        alert('書込み処理に失敗しました。設定が正しいか、確認してください。');
         return;
+      }
+
+      const gssInfo = gsses.map((gss: GssDto) => gss.info!).map(gss => {
+        const isSelected = gssId === getGssId(gss.gssUrl);
+        gss.lastSelected = isSelected;
+        gss.lastSelectedCategory = isSelected ? category : undefined;
+        return gss;
+      }) as GssInfo[];
+
+      if (!existed) {
+        const newGss = {
+          gssUrl: gssUrl,
+          title: 'A',
+          link: 'B',
+          category: 'C',
+          createdAt: 'D',
+          isRequireHeader: true,
+          lastSelected: true,
+          lastSelectedCategory: category
+        } as GssInfo;
+        gssInfo.push(newGss);
+      }
+
+      try {
+        await setStorageData(gssInfo);
+      } catch (error) {
+        console.error("Error saving data:", error);
       }
       window.close();
     });
@@ -130,9 +249,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // キャンセルボタンのクリックイベント
     cancelBtn?.addEventListener('click', () => window.close());
 
-    adminLink?.addEventListener('click', () => {
-      chrome.tabs.create({url: "admin.html"});
+    adminLink?.addEventListener('click', () => chrome.tabs.create({url: "admin.html"}));
+
+    gsses.forEach((gss: GssDto) => {
+      const option = new Option(gss.title, gss.url);
+      option.title = gss.url;
+      gssUrlDropdown!.appendChild(option);
     });
+    gsses.filter((gss: GssDto) => gss.info!.lastSelected).map(gss => {
+      changeGssOption(gss.title, gss.url, gss.categories);
+      gssUrlInput!.value = gss.url;
+      categoryInput!.value = gss.info!.lastSelectedCategory?? ''
+    })
 });
 
 document.addEventListener('click', (event) => {
@@ -147,39 +275,3 @@ document.addEventListener('click', (event) => {
     categoryDropdown.style.display = 'none';
   }  
 })
-
-// popup.js での表示処理
-// document.addEventListener('DOMContentLoaded', function() {
-//   // 管理画面を開くリンク
-//   document.getElementById('openDetailLink').addEventListener('click', function() {
-//     chrome.tabs.create({url: 'detail.html'});
-//   });
-  
-//   // 保存された項目を表示
-//   const itemsContainer = document.getElementById('itemsContainer');
-  
-//   // 保存されている項目を読み込む
-//   chrome.storage.sync.get(['popupItems'], function(result) {
-//     const items = result.popupItems || [];
-    
-//     // 項目を表示
-//     if (items.length === 0) {
-//       itemsContainer.innerHTML = '<p>表示項目はまだありません</p>';
-//     } else {
-//       const ul = document.createElement('ul');
-      
-//       items.forEach(item => {
-//         const li = document.createElement('li');
-//         li.textContent = item;
-//         ul.appendChild(li);
-//       });
-      
-//       itemsContainer.appendChild(ul);
-//     }
-//   });
-// });
-// onChangedイベントリスナーを追加して、ストレージの変更を監視する
-// chrome.storage.onChanged.addListener(function(changes, namespace) {    
-//   if (namespace === 'sync') {
-//     // 変更された項目を取
-//     for (let key in changes) {

@@ -1,3 +1,18 @@
+const storageKey = "MyToReadList";
+
+// インターフェース定義
+export interface GssInfo {
+  gssUrl: string;
+  sheetName?: string;
+  title: string;
+  link: string;
+  category: string;
+  createdAt: string;
+  isRequireHeader: boolean;
+  lastSelected?: boolean;
+  lastSelectedCategory?: string;
+}
+
 const getAccessToken = async (): Promise<any>  =>  {
     return new Promise((resolve, reject) => {
       chrome.identity.getAuthToken({ interactive: true }, 
@@ -69,3 +84,17 @@ export const invokeGssApi = async (url: string, method: string, data?: object): 
       return null;
     }
   }
+
+export const getStorageData = (): Promise<GssInfo[]> => {
+    return new Promise((resolve, reject) => {
+      chrome.storage.sync.get([storageKey], 
+        (result) => chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve(result[storageKey]));
+    });
+  };
+  
+export const setStorageData = (value: GssInfo[]): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      chrome.storage.sync.set({ [storageKey]: value }, 
+        () => chrome.runtime.lastError ? reject(chrome.runtime.lastError) : resolve());
+    });
+  };
