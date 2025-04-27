@@ -171,22 +171,32 @@ document.addEventListener("DOMContentLoaded", async (): Promise<void> => {
         return;
       }
       const info = await getStorageData();
-      const updatedInfo = info.map( (i: GssInfo) => {
-            const matched = rows.find( row => getGssId(row.gssUrl) === getGssId(i.gssUrl));
-            if (!matched) {return;}
-            return {
-              gssUrl: matched.gssUrl,
-              sheetName: matched.sheetName,
-              title: matched.title,
-              link: matched.link,
-              category: matched.category,
-              createdAt: matched.createdAt,
-              isRequireHeader: matched.isRequireHeader,
-              lastSelected: i.lastSelected,
-              lastSelectedCategory: i.lastSelectedCategory
-            } as GssInfo
-          })
-          .filter((i: GssInfo | undefined) => i !== undefined);
+      const updatedInfo = rows.map((r : GssRow) => {
+        const matched = info.find((i: GssInfo) => getGssId(r.gssUrl) === getGssId(i.gssUrl));
+        if (matched) {
+          return {
+            gssUrl: r.gssUrl,
+            sheetName: r.sheetName,
+            title: r.title,
+            link: r.link,
+            category: r.category,
+            createdAt: r.createdAt,
+            isRequireHeader: r.isRequireHeader,
+            lastSelected: matched.lastSelected,
+            lastSelectedCategory: matched.lastSelectedCategory
+          } as GssInfo
+        }
+        return {
+          gssUrl: r.gssUrl,
+          sheetName: r.sheetName,
+          title: r.title,
+          link: r.link,
+          category: r.category,
+          createdAt: r.createdAt,
+          isRequireHeader: r.isRequireHeader,
+          lastSelected: false
+        } as GssInfo
+      }).filter((i: GssInfo | undefined) => i !== undefined);
       setStorageData(updatedInfo);
       alert('保存しました');
       loadData();

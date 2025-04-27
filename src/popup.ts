@@ -84,9 +84,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const gsses = await getStorageData().then( async (info: GssInfo[]) => {
           const fetchCategories = async (baseUrl: string, column: string, sheet?: string, isRequireHeader?: boolean): Promise<string[]> => {
             const urlWithRange = `${baseUrl}?includeGridData=true&ranges=${sheet ? sheet + "!" : ""}${column + ":" + column}`;
-            console.log(`started. timestamp: ${new Date().toISOString()} : url: ${urlWithRange}`);
             const res = await invokeGssApi(urlWithRange, "GET");
-            console.log(`completed. timestamp: ${new Date().toISOString()} : url: ${urlWithRange}`);
             const rowData = res?.sheets[0]?.data?.[0]?.rowData;
             return rowData ? Array.from(
               new Set(rowData.slice(isRequireHeader ? 1 : 0).map((data: any) => data?.values?.[0]?.formattedValue).filter((data: any) => data))
@@ -101,9 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const gssUrlId = getGssId(i.gssUrl);
                 if (!gssUrlId) { throw Error(`The invalid gss id`) }
                 const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssUrlId}`;
-                console.log(`started. timestamp: ${new Date().toISOString()} : url: ${url}`);
                 const spreadsheet = await invokeGssApi(url, "GET");
-                console.log(`completed. timestamp: ${new Date().toISOString()} : url: ${url}`);
                 if (!spreadsheet) { throw Error("Invalid Gss API Res"); }
                 const title = spreadsheet.properties.title;
                 const matched = i.sheetName ? spreadsheet.sheets.filter((s: any) => s.properties.title === i.sheetName).length > 0 : true;
@@ -162,7 +158,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     categoryDropdown?.addEventListener('change', () => changeFieldValue(categoryInput, categoryDropdown));
 
     saveBtn?.addEventListener('click', async () => {
-      const defineRange = (info?: GssInfo): string => info?.sheetName! ? `${info.sheetName}!A:F` : "A:F";
+
+      const defineRange = (info?: GssInfo): string => `${info?.sheetName! ? `${info.sheetName}!` : ""}${info?.isRequireHeader! ? "A2" : "A1"}`;
       const generatePostValue = (formattedToday: string, title?: string, link?: string, category?: string, info?: GssInfo): (string | null)[] => {
         const mapValuePerColumn = (column: string, info: GssInfo): (string | null) => {
           if (info.title === column) { return title?? null; } 
@@ -208,7 +205,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const range = defineRange(existed?.info);
 
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}/values/${range}:append?valueInputOption=RAW`;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`;
       const data = generatePostValue(formattedToday,title, link, category, existed?.info);
 
       const res = await invokeGssApi(url, "POST", data);
