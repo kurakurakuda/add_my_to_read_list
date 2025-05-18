@@ -2,15 +2,20 @@ import { GssInfo,
   getGssId, invokeGssApi, 
   getStorageData, setStorageData } from './utils';
 
-
-const PopupModule = (() => {
-
-  interface GssDto {
-    title: string;
-    url: string;
-    categories: string[]
-    info?: GssInfo;
+declare global {
+  interface Window {
+    IS_TESTING?: boolean;
   }
+}
+
+export interface GssDto {
+  title: string;
+  url: string;
+  categories: string[]
+  info?: GssInfo;
+}
+  
+export const PopupModule = (() => {
 
   const toggleDropdown = (dropdown: HTMLSelectElement | null): void => {
     if (dropdown) {
@@ -180,7 +185,7 @@ const PopupModule = (() => {
   }
 
   const save = async (gsses: GssDto[], gssUrl?: string, title?: string, link?: string, category?: string) => {
-    const defineRange = (info?: GssInfo): string => `${info?.sheetName! ? `${info.sheetName}!` : ""}${info?.isRequireHeader! ? "A2" : "A1"}`;
+    const defineRange = (info?: GssInfo): string => `${info?.sheetName! ? `${info.sheetName}!` : ""}${info?.isRequireHeader == false ? "A1" : "A2"}`;
     const generatePostValue = (formattedToday: string, title?: string, link?: string, category?: string, info?: GssInfo): (string | null)[] => {
       const mapValuePerColumn = (column: string, info: GssInfo): (string | null) => {
         if (info.title === column) { return title?? null; } 
@@ -302,11 +307,17 @@ const PopupModule = (() => {
     }  
   }
 
-  return { 
+  return {
     init,
-    close
- };
+    close,
+    _private: window.IS_TESTING ? {
+      loadData
+    } : undefined
+  };
 })();
 
-document.addEventListener('DOMContentLoaded', PopupModule.init);
-document.addEventListener('click', PopupModule.close)
+
+if (!window.IS_TESTING) {
+  document.addEventListener('DOMContentLoaded', PopupModule.init);
+  document.addEventListener('click', PopupModule.close);
+}

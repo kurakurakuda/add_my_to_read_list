@@ -8,6 +8,9 @@ node_modules/
 # TypeScript
 dist/
 
+# jest
+coverage/
+
 # VS Code files for those working on multiple tools
 .vscode/
 
