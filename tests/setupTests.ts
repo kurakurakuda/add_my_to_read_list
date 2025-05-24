@@ -21,4 +21,11 @@ global.chrome = {
     query: jest.fn((queryInfo: any) => Promise.resolve([{ id: 1, title: 'Mock Tab', url: 'https://example.com' }])),
     create: jest.fn(),
   },
-} as any
+} as any;
+
+global.fetch = jest.fn(async (url: any, data:any) => Promise.resolve({
+    json: () => Promise.resolve({ data: 'モックデータ' }),
+    ok: true,
+    status: 200,
+    text: () => Promise.resolve('テキストデータ'),
+  } as Response));
