@@ -1,5 +1,16 @@
 import { PopupModule } from '../src/popup';
 import * as utils from '../src/utils';
+import {
+  mockGssInfo,
+  mockGssInfoMinimum,
+  mockGssInfoLastSelected,
+  mockGssApiRes,
+  mockRes,
+  mockResMinimum,
+  mockResLastSelected,
+  mockGetStorageData,
+  mockInvokeGssApi
+} from './testUtils';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -10,69 +21,6 @@ describe('PopupModule', () => {
   let mockCategoryInput: HTMLInputElement;
   let mockCategoryDropdown: HTMLSelectElement;
   let mockTitleInput: HTMLInputElement;
-
-  // sheetName is set
-  // isisRequireHeader is true
-  // lastXXX is not set
-  const mockGssInfo: utils.GssInfo = {
-          gssUrl: 'https://docs.google.com/spreadsheets/d/aaa/edit',
-          sheetName: 'Mock sheet1',
-          title: '',
-          link: '',
-          category: '',
-          createdAt: '',
-          isRequireHeader: true
-        };
-  // sheetName is not set
-  // isisRequireHeader is false
-  // lastXXX is not set
-  const mockGssInfoMinimum: utils.GssInfo = {
-          gssUrl: 'https://docs.google.com/spreadsheets/d/ccc/edit',
-          title: '',
-          link: '',
-          category: '',
-          createdAt: '',
-          isRequireHeader: false
-        };
-
-  // sheetName is set
-  // isisRequireHeader is true
-  // lastXXX is set
-  const mockGssInfoLastSelected: utils.GssInfo = {
-          gssUrl: 'https://docs.google.com/spreadsheets/d/ddd/edit',
-          sheetName: 'Mock sheet4',
-          title: '',
-          link: '',
-          category: '',
-          createdAt: '',
-          isRequireHeader: true,
-          lastSelected: true,
-          lastSelectedCategory: 'Mock Category'
-        };
-
-  const mockGssApiRes = (title: string, sheetName: string, rowData: (string|null)[]) => {
-    return {
-          properties: { title: title },
-          sheets: [
-            {
-              properties: { title: sheetName },
-              data: [{ rowData: rowData.map((d)=> { return { values: [{ formattedValue: d }] }}) }]
-            }
-          ]
-        };
-  }
-  // mock gss api response for mockGssInfo1
-  const mockRes = mockGssApiRes('Mock Spreadsheet1', 'Mock sheet1', ['data11', 'data12', null]);
-  // mock gss api response for mockGssInfo3
-  const mockResMinimum = mockGssApiRes('Mock Spreadsheet3', 'Mock sheet3', ['data31', 'data32', null]);
-  // mock gss api response for mockGssInfo4
-  const mockResLastSelected = mockGssApiRes('Mock Spreadsheet4', 'Mock sheet4', ['data41', 'data42', 'data43', 'data44', 'data45', 'data46', null]);
-
-  const mockGetStorageData = (infos: utils.GssInfo[]) => jest.spyOn(utils, 'getStorageData').mockResolvedValue(infos);
-  const mockInvokeGssApi = (urlMap: object) => jest.spyOn(utils, 'invokeGssApi').mockImplementation((url: string, method: string) => {
-          const urlEntry = Object.entries(urlMap).find(([key]) => url.includes(key));
-          return Promise.resolve(urlEntry ? urlEntry[1] : null);
-        });
 
   const verifyGssTitleArea = (link: string, text: string) => {
         const aLink  = mockGssTitleArea.firstChild as HTMLAnchorElement;

@@ -2,6 +2,12 @@ import { GssInfo,
   getGssId, invokeGssApi, 
   getStorageData, setStorageData } from './utils';
 
+declare global {
+  interface Window {
+    IS_TESTING?: boolean;
+  }
+}
+
 interface GssProps {
   title?: string,
   sheets?: string[]
@@ -17,33 +23,57 @@ interface GssRow {
   isRequireHeader: boolean;
 }
 
-// ページ読み込み時にテーブルを描画
-document.addEventListener("DOMContentLoaded", async (): Promise<void> => {
-  const addNewBtn = document.getElementById("add-new") as HTMLButtonElement;
+export const AdminModule = (() => {
 
-  const tableBody = document.getElementById("gss-table-body") as HTMLTableSectionElement;
-
-  const resetBtn = document.getElementById("reset") as HTMLButtonElement;
-  const saveBtn = document.getElementById("save") as HTMLButtonElement;
-
-  const dialog = document.getElementById("gss-new-dialog") as HTMLDialogElement;
-  const dialogInput = document.querySelector("#gss-dialog-input input") as HTMLInputElement;
-  const dialogCancelBtn = document.getElementById("cancel-dialog-btn") as HTMLButtonElement;
-  const dialogSaveBtn = document.getElementById("add-dialog-btn") as HTMLButtonElement;
-
-  const getGss = async (data: GssInfo): Promise<GssProps | null> => {
-    const gssId = getGssId(data.gssUrl);
-    if (!gssId) {return null;}
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}`;
-    const gss = await invokeGssApi(url, "GET");
-    if (!gss) {return null;}
-    return {
-      title: gss.properties.title || undefined,
-      sheets: gss.sheets.map((s: any) => s.properties.title) || []
-    } as GssProps;
+  const openDialog = (dialog: HTMLDialogElement) => {
+    if (!dialog) {return;}
+    dialog.showModal();
   }
 
-  const addRow = async (rawData: GssInfo, latestInfo: GssProps | null) => {
+  const closeDialog = (dialog: HTMLDialogElement, dialogInput: HTMLInputElement) => {
+    if (dialogInput) { dialogInput.value = ""; }
+    if (dialog) { dialog.close(); }
+  }
+
+  const addNewGssInfo = async (tableBody: HTMLTableSectionElement, dialog: HTMLDialogElement, dialogInput: HTMLInputElement) => {
+    if (!dialog || !tableBody || !dialogInput) {return;}
+
+    const gssUrl = dialogInput.value;
+    const gssId = getGssId(gssUrl);
+    if (!gssId) {
+      alert('Google Spreadsheet URLが正しくありません');
+      return;
+    }
+
+    const existingGssIds: string[] = extractGssFromTable(tableBody).map((item) => getGssId(item.gssUrl)).filter((id) => id !== null);
+    if (existingGssIds.length >= 10) {
+      alert('最大10件までしか登録できません。');
+      return;
+    }
+    if (existingGssIds.filter((id: string) => id === gssId).length > 0) {
+      alert('既に同じURLが存在しています。');
+      return;
+    }
+
+    const newItem: GssInfo = {
+      gssUrl: gssUrl,
+      title: "A",
+      link: "B",
+      category: "C",
+      createdAt: "D",
+      isRequireHeader: true
+    }
+
+    const latestGssInfo = await getGss(newItem);
+    if (latestGssInfo){
+      addRow(tableBody, newItem, latestGssInfo);
+    } else {
+      alert(`Google Spreadsheet 情報を取得できませんでした。URLが正しいか、確認してください。 URL: ${newItem.gssUrl}`);
+    }
+    closeDialog(dialog, dialogInput);
+  }
+
+  const addRow = async (tableBody: HTMLTableSectionElement, rawData: GssInfo, latestInfo: GssProps | null) => {
     const generateColumnDropdwn = (selectedValue?: string) => {
       const dropdown = document.createElement('select') as HTMLSelectElement;
       ["A", "B", "C", "D", "E", "F"].forEach((option) => {
@@ -97,16 +127,13 @@ document.addEventListener("DOMContentLoaded", async (): Promise<void> => {
     const deleteBtn = document.createElement('button') as HTMLButtonElement;
     deleteBtn.className = "danger";
     deleteBtn.textContent = "削除";
-    deleteBtn.addEventListener("click", async () => {
-      newRow.remove();
-    });
+    deleteBtn.addEventListener("click", async () => { newRow.remove(); });
     const actionCell = newRow.insertCell(7) as HTMLTableCellElement;
     actionCell.className = "table-actions";    
     actionCell.appendChild(deleteBtn);
-    
   }
 
-  const extractGssFromTable = ():GssRow[] => {
+  const extractGssFromTable = (tableBody: HTMLTableSectionElement):GssRow[] => {
     if (!tableBody) {throw Error("tableBody is null");}
     const rows = tableBody.querySelectorAll("tr") as NodeListOf<HTMLTableRowElement>;
 
@@ -124,17 +151,27 @@ document.addEventListener("DOMContentLoaded", async (): Promise<void> => {
     });
   }
 
-  const loadData = async () => {
+  const getGss = async (data: GssInfo): Promise<GssProps | null> => {
+    const gssId = getGssId(data.gssUrl);
+    if (!gssId) {return null;}
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${gssId}`;
+    const gss = await invokeGssApi(url, "GET");
+    if (!gss) {return null;}
+    return {
+      title: gss.properties.title || undefined,
+      sheets: gss.sheets.map((s: any) => s.properties.title) || []
+    } as GssProps;
+  }
+
+  const loadData = async (tableBody: HTMLTableSectionElement) => {
     tableBody.innerHTML = "";
     try {
       const gsses:GssInfo[] = (await getStorageData()) || [];
       const gssTupples = await Promise.all(gsses.map(async (gss: GssInfo) => [gss, await getGss(gss)] as [GssInfo, GssProps | null]));
 
       gssTupples.forEach( tupple => {
-        if (!tupple[1]) {
-          alert(`Google Spreadsheet 情報を取得できませんでした。URLが正しいか、確認してください。 URL: ${tupple[0].gssUrl}`);
-        }
-        addRow(tupple[0], tupple[1]);
+        if (!tupple[1]) { alert(`Google Spreadsheet 情報を取得できませんでした。URLが正しいか、確認してください。 URL: ${tupple[0].gssUrl}`); }
+        addRow(tableBody, tupple[0], tupple[1]);
       })
     } catch (error) {
       console.error("Error during laoding from storage: " + error);
@@ -142,30 +179,15 @@ document.addEventListener("DOMContentLoaded", async (): Promise<void> => {
     }
   }
 
-  const closeDialog = () => {
-    if (dialogInput) { dialogInput.value = ""; }
-    if (dialog) { dialog.close(); }
-  }
-  
-  addNewBtn?.addEventListener("click", () => {
-    if (!dialog) {return;}
-    dialog.showModal();
-  });
-
-  resetBtn?.addEventListener("click", async () => {
+  const reset = async (tableBody: HTMLTableSectionElement) => {
     if (confirm('変更した内容をリセットしてもよろしいですか？')) {
-      try {
-        loadData();
-      } catch (error) {
-        console.error("Error saving data:", error);
-        alert('処理に失敗しました。時間をおいてから再度試してみてください');
-      }
+      await loadData(tableBody);
     }
-  });
+  }
 
-  saveBtn?.addEventListener("click", async () => {
-   try {
-      const rows = extractGssFromTable();
+  const save = async (tableBody: HTMLTableSectionElement) => {
+    try {
+      const rows = extractGssFromTable(tableBody);
       if (rows.filter((r: GssRow) => new Set([r.title, r.link, r.category, r.createdAt]).size !== 4).length > 0) {
         alert(`同じ列を重複して、指定することはできません。`);
         return;
@@ -199,57 +221,41 @@ document.addEventListener("DOMContentLoaded", async (): Promise<void> => {
       }).filter((i: GssInfo | undefined) => i !== undefined);
       setStorageData(updatedInfo);
       alert('保存しました');
-      loadData();
+      loadData(tableBody);
     } catch (error) {
       console.error("Error saving data:", error);
       alert('処理に失敗しました。時間をおいてから再度試してみてください');
     }
-  });
+  }
 
-  dialogSaveBtn?.addEventListener("click", async () => {
-    if (!dialog || !tableBody || !dialogInput) {return;}
+  const init = async () => {
+    const addNewBtn = document.getElementById("add-new") as HTMLButtonElement;
 
-    const gssUrl = dialogInput.value;
-    const gssId = getGssId(gssUrl);
-    if (!gssId) {
-      alert('Google Spreadsheet URLが正しくありません');
-      return;
-    }
+    const tableBody = document.getElementById("gss-table-body") as HTMLTableSectionElement;
 
-    const existingGssIds: string[] = extractGssFromTable().map((item) => getGssId(item.gssUrl)).filter((id) => id !== null);
-    if (existingGssIds.length >= 10) {
-      alert('最大10件までしか登録できません。');
-      return;
-    }
-    if (existingGssIds.filter((id: string) => id === gssId).length > 0) {
-      alert('既に同じURLが存在しています。');
-      return;
-    }
+    const resetBtn = document.getElementById("reset") as HTMLButtonElement;
+    const saveBtn = document.getElementById("save") as HTMLButtonElement;
 
-    const newItem: GssInfo = {
-      gssUrl: gssUrl,
-      title: "A",
-      link: "B",
-      category: "C",
-      createdAt: "D",
-      isRequireHeader: true
-    }
+    const dialog = document.getElementById("gss-new-dialog") as HTMLDialogElement;
+    const dialogInput = document.querySelector("#gss-dialog-input input") as HTMLInputElement;
+    const dialogCancelBtn = document.getElementById("cancel-dialog-btn") as HTMLButtonElement;
+    const dialogSaveBtn = document.getElementById("add-dialog-btn") as HTMLButtonElement;
 
-    const latestGssInfo = await getGss(newItem);
-    if (latestGssInfo){
-      addRow(newItem, latestGssInfo);
-    } else {
-      alert(`Google Spreadsheet 情報を取得できませんでした。URLが正しいか、確認してください。 URL: ${newItem.gssUrl}`);
-    }
-    closeDialog();
-  });
+    await loadData(tableBody);
+    
+    addNewBtn?.addEventListener("click", () => openDialog(dialog));
+    resetBtn?.addEventListener("click", async () => reset(tableBody));
+    saveBtn?.addEventListener("click", async () => save(tableBody));
+    dialogSaveBtn?.addEventListener("click", async () => addNewGssInfo(tableBody, dialog, dialogInput));
+    dialogCancelBtn?.addEventListener("click", () => closeDialog(dialog, dialogInput));
+    // dialog外にクリック時に、dialogが閉じるようにする
+    dialog?.addEventListener('click', (event) => event.target === dialog ? closeDialog(dialog, dialogInput) : null);
 
+  };
 
-  dialogCancelBtn?.addEventListener("click", closeDialog);
+  return { init };
+})();
 
-  // dialog外にクリック時に、dialogが閉じるようにする
-  dialog?.addEventListener('click', (event) => event.target === dialog ? closeDialog() : null);
-
-  loadData();
-
-});
+if (!window.IS_TESTING) {
+  document.addEventListener('DOMContentLoaded', AdminModule.init);
+}
